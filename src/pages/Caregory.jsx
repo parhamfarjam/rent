@@ -1,0 +1,87 @@
+import React, { useEffect, useState } from 'react'
+import { toast } from 'react-toastify'
+import {collection, getDocs, limit, orderBy, query, startAfter, where} from 'firebase/firestore'
+import {db} from '../FireBase'
+import Spinner from './components/Spinner'
+import ListingItem from './components/ListingItem'
+import { useParams } from 'react-router-dom'
+
+export default function Caregory() {
+  const [listings,setListings] = useState(null)
+  const [loading,setLoading] = useState(true)
+  const [lastFetchListing,SetLastFetchListing] = useState(null)
+  const params = useParams()
+  useEffect(()=>{
+    async function fetchListings(){
+      try {
+        const listingRef = collection(db,'listings')
+        const q = query(listingRef,where('type', '==',params.caregoryName),orderBy('timestamp' ,'desc'),limit(8))
+        const querySnap = await getDocs(q)
+        const lastVisible = querySnap.docs[querySnap.docs.length - 1]
+        SetLastFetchListing(lastVisible)
+        const listings = []
+        querySnap.forEach((doc)=>{
+          return listings.push({
+            id: doc.id,
+            data: doc.data(),
+          })
+        })
+        setListings(listings)
+        setLoading(false)
+      } catch (error) {
+        toast.error('could not fetch list')
+      }
+    }
+    fetchListings()
+  },[params.caregoryName])
+   async function onFetchMore(){
+    try {
+      const listingRef = collection(db,'listings')
+      const q = query(listingRef,where('type', '==',params.caregoryName),orderBy('timestamp' ,'desc'),startAfter(lastFetchListing),limit(4))
+      const querySnap = await getDocs(q)
+      const lastVisible = querySnap.docs[querySnap.docs.length - 1]
+      SetLastFetchListing(lastVisible)
+      const listings = []
+      querySnap.forEach((doc)=>{
+        return listings.push({
+          id: doc.id,
+          data: doc.data(),
+        })
+      })
+      setListings((prevState)=>[...prevState,...listings])
+      setLoading(false)
+    } catch (error) {
+      toast.error('could not fetch list')
+    }
+   }
+  return (
+    <div className='max-w-6xl mx-auto px-3'>
+      <h1 className='text-center text-3xl mt-6 font-bold mb-6'>
+        {params.caregoryName === 'rent' ? 'show places for rent' : 'show places for sale'}
+      </h1>
+      {loading ? (
+        <Spinner/>
+      ) : listings && listings.length > 0 ? (
+        <>
+        <main>
+          <ul className='sm:grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5'>
+            {listings.map((listing)=>(
+              <ListingItem key={listing.id} id={listing.id} listing={listing.data}/>
+            ))}
+          </ul>
+        </main>
+        {lastFetchListing && (
+          <div className='flex justify-center items-center'>
+            <button 
+            onClick={onFetchMore}
+            className='bg-white px-3 py-1.5 text-gray-700 border border-gray-300 mb-6 mt-6 hover:border-slate-600 rounded transition duration-150 ease-in-out'>load more</button>
+          </div>
+        )}
+        </>
+      ) : (
+        <p>{params.caregoryName === 'rent' ? 'no for rent' : 'no for sale'}</p>
+      )}
+    </div>
+  )
+}
+
